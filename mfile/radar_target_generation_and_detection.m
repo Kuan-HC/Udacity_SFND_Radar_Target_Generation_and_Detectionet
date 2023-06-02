@@ -64,8 +64,7 @@ td=zeros(1,length(t));
 %% Signal generation and Moving Target simulation
 % Running the radar scenario over the time. 
 
-for i=1:length(t)         
-    
+for i=1:length(t)        
     
     % *%TODO* :
     %For each time stamp update the Range of the Target for constant velocity. 
@@ -154,17 +153,20 @@ figure,surf(doppler_axis,range_axis,RDM);
 
 % *%TODO* :
 %Select the number of Training Cells in both the dimensions.
+Tr = 10;
+Td = 8;
 
 % *%TODO* :
 %Select the number of Guard Cells in both dimensions around the Cell under 
 %test (CUT) for accurate estimation
+Gr = 4;
+Gd = 4;
 
 % *%TODO* :
 % offset the threshold by SNR value in dB
+offset = 6;
 
 % *%TODO* :
-%Create a vector to store noise_level for each iteration on training cells
-noise_level = zeros(1,1);
 
 
 % *%TODO* :
@@ -179,10 +181,45 @@ noise_level = zeros(1,1);
 %it a value of 1, else equate it to 0.
 
 
-   % Use RDM[x,y] as the matrix from the output of 2D FFT for implementing
-   % CFAR
+ % Use RDM[x,y] as the matrix from the output of 2D FFT for implementing
+ % CFAR
+ cfarResult = zeros(size(RDM));
+ [numRows, numCols] = size(RDM);
+ 
+ for i = Tr + Gr + 1 : numRows - (Gr + Tr)
+    for j = Td + Gd + 1 : numCols - (Gd + Td)
 
+        %Create a vector to store noise_level for each iteration on training cells
+        noise_level = zeros(1,1);
 
+         for p = i - (Tr + Gr) : i + Tr + Gr
+            for q = j - (Td + Gd) : j + Td + Gd
+                
+                if (abs(i-p)>Gr || abs(j-q)>Gd)
+                    % To sum convert the value from logarithmic to linear using
+                    % db2pow function.
+
+                    noise_level = noise_level + db2pow(RDM(p,q));
+                end
+                
+            end
+         end
+
+         % Average the summed values for all of the training cells used.
+         % After averaging convert it back to logarithmic using pow2db.
+         threshold = pow2db(noise_level / (2*(Td+Gd+1)*2*(Tr+Gr+1) -(Gr*Gd)-1));
+         
+         % Further add the offset to it to determine the threshold.
+         threshold = threshold + offset;
+
+         % Makesure the signal in Cell Under Test (CUT) and compare against
+         CUT = RDM(i,j);
+         if CUT > threshold
+            cfarResult(i,j) = 1;
+         end
+            
+    end
+ end
 
 
 
@@ -194,18 +231,11 @@ noise_level = zeros(1,1);
  
 
 
-
-
-
-
-
-
 % *%TODO* :
 %display the CFAR output using the Surf function like we did for Range
 %Doppler Response output.
-figure,surf(doppler_axis,range_axis,'replace this with output');
+figure,surf(doppler_axis,range_axis,cfarResult);
 colorbar;
-
 
  
  
